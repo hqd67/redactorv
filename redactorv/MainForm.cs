@@ -18,12 +18,14 @@ namespace redactorv
     {
         private Panel canvas;
         private FlowLayoutPanel toolbar;
-        private Button btnSelect, btnRect, btnEllipse, btnPolygon, btnColor;
+        private Button btnSelect, btnRect, btnEllipse, btnPolygon, btnColor, btnDelete;
         private Label lblTool;
 
         private Tool currentTool = Tool.Select;
         private List<Shape> shapes = new List<Shape>();
         private Shape tempShape = null;
+        private Shape selectedShape = null;
+
         private List<Point> polygonPoints = new List<Point>();
 
         private bool isDrawing = false;
@@ -51,11 +53,12 @@ namespace redactorv
             btnEllipse = new Button() { Text = "Ellipse" };
             btnPolygon = new Button() { Text = "Polygon" };
             btnColor = new Button() { Text = "Color" };
+            btnDelete = new Button() { Text = "Delete" };
 
             lblTool = new Label() { Text = "Tool: Select", AutoSize = true, Padding = new Padding(10, 8, 0, 0) };
 
             toolbar.Controls.AddRange(new Control[] {
-                btnSelect, btnRect, btnEllipse, btnPolygon, btnColor, lblTool
+                btnSelect, btnRect, btnEllipse, btnPolygon, btnColor, btnDelete, lblTool
             });
             this.Controls.Add(toolbar);
 
@@ -75,6 +78,7 @@ namespace redactorv
             btnEllipse.Click += (s, e) => SetTool(Tool.Ellipse);
             btnPolygon.Click += (s, e) => SetTool(Tool.Polygon);
             btnColor.Click += PickColor;
+            btnDelete.Click += BtnDelete_Click;
         }
 
         private void SetTool(Tool t)
@@ -107,11 +111,28 @@ namespace redactorv
 
         private void Canvas_MouseDown(object sender, MouseEventArgs e)
         {
-            if (currentTool == Tool.Select)
-                return;
-
-            isDrawing = true;
             startPoint = e.Location;
+            isDrawing = true;
+
+            if (currentTool == Tool.Select)
+            {
+                selectedShape = null;
+
+                for (int i = shapes.Count - 1; i >= 0; i--)
+                {
+                    if (shapes[i].ContainsPoint(e.Location))
+                    {
+                        selectedShape = shapes[i];
+                        break;
+                    }
+                }
+
+                foreach (Shape s in shapes) s.IsSelected = false;
+                if (selectedShape != null) selectedShape.IsSelected = true;
+
+                canvas.Invalidate();
+                return;
+            }
 
             if (currentTool == Tool.Polygon)
             {
@@ -124,10 +145,21 @@ namespace redactorv
         {
             if (!isDrawing) return;
 
+            if (currentTool == Tool.Select && selectedShape != null && e.Button == MouseButtons.Left)
+            {
+                int dx = e.X - startPoint.X;
+                int dy = e.Y - startPoint.Y;
+                selectedShape.Move(dx, dy);
+                startPoint = e.Location;
+                canvas.Invalidate();
+                return;
+            }
+
             if (currentTool == Tool.Rectangle)
             {
                 tempShape = new RectangleShape(MakeRect(startPoint, e.Location), currentColor);
             }
+
             if (currentTool == Tool.Ellipse)
             {
                 tempShape = new EllipseShape(MakeRect(startPoint, e.Location), currentColor);
@@ -156,6 +188,16 @@ namespace redactorv
             {
                 shapes.Add(new PolygonShape(new List<Point>(polygonPoints), currentColor));
                 polygonPoints.Clear();
+                canvas.Invalidate();
+            }
+        }
+
+        private void BtnDelete_Click(object sender, EventArgs e)
+        {
+            if (selectedShape != null)
+            {
+                shapes.Remove(selectedShape);
+                selectedShape = null;
                 canvas.Invalidate();
             }
         }
